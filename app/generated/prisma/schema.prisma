@@ -1,0 +1,91 @@
+generator client {
+  provider      = "prisma-client-js"
+  output        = "../app/generated/prisma"
+  binaryTargets = ["native", "debian-openssl-3.0.x", "rhel-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                Int               @id @default(autoincrement())
+  status            String            @default("Active") @map("status")
+  phone_number      String            @unique
+  user_code         String?
+  password          String
+  fp_id             String
+  ip                String
+  balance           Decimal           @default(0) @db.Decimal(10, 2)
+  turn_over         Decimal           @default(0) @db.Decimal(10, 2)
+  invited_by        String?           @map("invite_code")
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  game_transactions GameTransaction[]
+  transactions      Transaction[]
+  vouchers          Voucher[]
+}
+
+model Transaction {
+  id        Int               @id @default(autoincrement())
+  amount    Decimal           @db.Decimal(10, 2)
+  type      TransactionType
+  trx_id    String?
+  sign      String?
+  status    TransactionStatus @default(pending)
+  user_id   Int
+  method    String?
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+  user      User              @relation(fields: [user_id], references: [id])
+}
+
+model GameTransaction {
+  id        Int      @id @default(autoincrement())
+  trans_id  String   @unique
+  type      String
+  amount    Decimal  @db.Decimal(10, 2)
+  game_code String?
+  user_id   Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [user_id], references: [id])
+}
+
+model Message {
+  id        Int      @id @default(autoincrement())
+  sender    String
+  receiver  String
+  content   String?
+  fileUrl   String?
+  createdAt DateTime @default(now())
+  seen      Boolean  @default(false)
+}
+
+enum TransactionStatus {
+  pending
+  completed
+  cancelled
+}
+
+enum TransactionType {
+  deposit
+  withdraw
+  bonus
+  commission
+  salary
+}
+
+model Voucher {
+  id           Int       @id @default(autoincrement())
+  code         String
+  amount       Decimal   @db.Decimal(10, 2)
+  collected    Boolean   @default(false)
+  collected_at DateTime?
+  message      String?
+  collected_by Int?
+  user         User?     @relation(fields: [collected_by], references: [id])
+  updatedAt    DateTime  @updatedAt
+  createdAt    DateTime  @default(now())
+}
