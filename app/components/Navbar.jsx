@@ -135,7 +135,7 @@ export default function Navbar() {
 
             {/* Theme toggle and user icon on the right */}
             <div className="flex items-center space-x-4 md:space-x-6">
-              <Link
+              {/* <Link
                 href="/auth/login"
                 className=" hidden md:block text-sm font-semibold tracking-tight px-3 py-2.5 text-foreground bg-yellow-400 rounded-lg "
               >
@@ -146,7 +146,7 @@ export default function Navbar() {
                 className=" hidden md:block text-sm font-semibold tracking-tight px-3 py-2.5 text-background bg-blue-500 rounded-lg "
               >
                 এখনই যোগ দিন
-              </Link>
+              </Link> */}
 
               {showDownApp && (
                 <button

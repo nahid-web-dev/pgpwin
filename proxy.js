@@ -10,7 +10,7 @@ export default async function Proxy(req) {
   const token = req.cookies.get("auth_token")?.value;
 
   if (!token) {
-    return NextResponse.redirect(new URL(`/auth`, req.url));
+    return NextResponse.redirect(new URL(`/auth/login`, req.url));
   }
 
   try {
@@ -32,6 +32,8 @@ export const config = {
     "/wallet/:path*", // all pages under /profile
     "/game/:path",
     "/game/:path/:path",
+    "/torrospins-provider/:path",
+    "/torrospins-game/:path",
     "/support",
   ],
 };

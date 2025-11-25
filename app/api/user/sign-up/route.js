@@ -1,15 +1,19 @@
 import { prisma } from "@/app/lib/prisma";
 import { hashPassword, generateToken } from "@/app/lib/auth";
-import { cookies, headers } from "next/headers";
 import { NextResponse } from "next/server";
 import axios from "axios";
+import crypto from "crypto";
 
 export async function POST(request) {
   try {
     const { username, phone_number, password, invited_by, fingerprint_id } =
       await request.json();
 
-    // Validate input
+    // Get clean IP
+    const ip =
+      request.headers.get("x-forwarded-for")?.split(",")[0] || "unknown";
+    console.log(ip);
+
     if (!phone_number || !username || !password) {
       return NextResponse.json(
         { message: "Phone number and password are required" },
@@ -27,7 +31,6 @@ export async function POST(request) {
       );
     }
 
-    // Check if user already exists
     const existingUser = await prisma.user.findFirst({
       where: { phone_number },
     });
@@ -42,15 +45,13 @@ export async function POST(request) {
         { status: 400 }
       );
     }
+
     if (existingUser) {
       return NextResponse.json(
         { message: "User with this phone number already exists" },
         { status: 400 }
       );
     }
-
-    // Get the user's IP address
-    const ip = request.headers.get("x-forwarded-for") || "unknown";
 
     const existingUserWithSameFPAndIp = await prisma.user.findFirst({
       where: {
@@ -66,37 +67,74 @@ export async function POST(request) {
       );
     }
 
-    // Hash the password
     const hashedPassword = await hashPassword(password);
 
-    // Create the user
     const newUser = await prisma.user.create({
       data: {
-        phone_number: phone_number,
+        phone_number,
         user_code: username,
         password: hashedPassword,
-        invited_by: invited_by,
-        ip: ip,
+        invited_by,
+        ip,
         fp_id: fingerprint_id,
       },
     });
 
+    function generateUserResHash(data, SECRET_KEY) {
+      let str = "";
+      for (const key of Object.keys(data)) {
+        if (key === "hash") continue;
+        const value = data[key];
+        if (typeof value === "object") continue;
+        str += value === true ? "1" : value === false ? "0" : value || "";
+      }
+      str += SECRET_KEY;
+      return crypto.createHash("md5").update(str).digest("hex");
+    }
+
+    // Torrospin user registration
+    const userData = {
+      casino_user_id: String(newUser.id),
+      username: newUser.phone_number,
+      hash: "",
+    };
+
+    userData.hash = generateUserResHash(
+      userData,
+      process.env.TORROSPIN_API_SECRET
+    );
+
+    const addUser = await axios.post(
+      `${process.env.TORROSPIN_API_URL}/api/add/user`,
+      userData,
+      {
+        headers: {
+          "x-api-key": process.env.TORROSPIN_API_KEY,
+        },
+      }
+    );
+
+    console.log("addUser:", addUser.data);
+
     const token = generateToken(newUser.id, newUser.phone_number);
 
-    // Set cookie using NextResponse
     const response = NextResponse.json({
       success: true,
       message: "Registration Successful!",
       token,
-      user: { id: newUser.id, phone_number: newUser.phone_number },
+      user: {
+        id: newUser.id,
+        phone_number: newUser.phone_number,
+      },
     });
 
-    response.headers.set(
-      "Set-Cookie",
-      `auth_token=${token}; Path=/; Max-Age=${
-        29 * 24 * 60 * 60
-      }; SameSite=None; Secure`
-    );
+    // Correct cookie method
+    response.cookies.set("auth_token", token, {
+      path: "/",
+      maxAge: 29 * 24 * 60 * 60,
+      sameSite: "none",
+      secure: true,
+    });
 
     return response;
   } catch (error) {
